@@ -155,37 +155,22 @@
         return logs;
       }
       
-      // Função para formatar os detalhes: se o texto for JSON (ou contiver JSON) utiliza o JSON Viewer
+      // Função para formatar o conteúdo dos detalhes (child row)
       function format(details) {
         var html = "";
         try {
-          // Tenta converter o conteúdo inteiro em JSON
           var jsonData = JSON.parse(details);
+          // Se for JSON válido, cria um container para o JSON Viewer
           var containerId = 'json-' + Math.floor(Math.random() * 100000);
           html = '<div id="'+ containerId +'" class="json-viewer"></div>';
           setTimeout(function() {
             $('#' + containerId).jsonViewer(jsonData, { collapsed: true });
           }, 0);
-          return html;
         } catch (e) {
-          // Caso não seja um JSON válido, tenta extrair um trecho JSON do texto
-          var jsonMatch = details.match(/(\{.*\})/s);
-          if (jsonMatch && jsonMatch[1]) {
-            try {
-              var extracted = JSON.parse(jsonMatch[1]);
-              var containerId = 'json-' + Math.floor(Math.random() * 100000);
-              html = '<div id="'+ containerId +'" class="json-viewer"></div>';
-              setTimeout(function() {
-                $('#' + containerId).jsonViewer(extracted, { collapsed: true });
-              }, 0);
-              return html;
-            } catch (e2) {
-              // Se ainda assim não funcionar, segue para o fallback
-            }
-          }
-          // Fallback: exibe o conteúdo em um <pre>
-          return '<pre>' + $('<div>').text(details).html() + '</pre>';
+          // Se não for JSON, exibe em um <pre>
+          html = '<pre>' + $('<div>').text(details).html() + '</pre>';
         }
+        return html;
       }
       
       // Evento disparado quando um arquivo é selecionado
@@ -198,9 +183,10 @@
             var logs = parseLogFile(content);
             // Limpa a tabela
             table.clear().draw();
-            // Adiciona cada log à tabela e armazena os detalhes no elemento da linha
+            // Adiciona cada log à tabela
             logs.forEach(function(log) {
               var detailsBtn = '<button class="btn btn-sm btn-primary details-btn">Detalhes</button>';
+              // Adiciona a linha e armazena os detalhes usando .data() do jQuery
               var rowNode = table.row.add([
                 log.timestamp,
                 log.environment,
@@ -215,7 +201,7 @@
         }
       });
       
-      // Evento para exibir/ocultar a child row com os detalhes
+      // Evento para exibir ou ocultar a child row com os detalhes
       $('#logsTable tbody').on('click', 'button.details-btn', function() {
         var tr = $(this).closest('tr');
         var row = table.row(tr);
@@ -229,7 +215,7 @@
         }
       });
       
-      // Alterna entre tema claro e escuro
+      // Funcionalidade do botão para alternar tema
       $('#toggleTheme').on('click', function() {
         var body = $('body');
         if (body.hasClass('dark-mode')) {
