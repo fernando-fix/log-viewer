@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <title>Visualizador de Logs do Laravel</title>
+  <!-- Bootstrap CSS -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <!-- DataTables CSS -->
+  <link href="https://cdn.datatables.net/1.13.4/css/dataTables.bootstrap5.min.css" rel="stylesheet">
+  <!-- jQuery JSON Viewer CSS -->
+  <link href="https://cdn.jsdelivr.net/npm/jquery-json-viewer@1.4.0/json-viewer.css" rel="stylesheet">
+  <!-- Bootstrap Icons CSS -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css" rel="stylesheet">
+  <style>
+    /* Estilos para Dark Mode e Light Mode */
+    body.dark-mode {
+      background-color: #343a40;
+      color: #f8f9fa;
+    }
+    body.light-mode {
+      background-color: #ffffff;
+      color: #212529;
+    }
+    body.dark-mode .table {
+      background-color: #343a40;
+      color: #f8f9fa;
+    }
+    body.light-mode .table {
+      background-color: #fff;
+      color: #212529;
+    }
+    body.dark-mode pre {
+      white-space: pre-wrap;
+      word-wrap: break-word;
+      background-color: #212529;
+      color: #f8f9fa;
+      padding: 10px;
+      border-radius: 5px;
+    }
+    body.light-mode pre {
+      white-space: pre-wrap;
+      word-wrap: break-word;
+      background-color: #f8f9fa;
+      color: #212529;
+      padding: 10px;
+      border-radius: 5px;
+    }
+    body.dark-mode .json-viewer {
+      background-color: #212529;
+      color: #f8f9fa;
+      padding: 10px;
+      border-radius: 5px;
+    }
+    body.light-mode .json-viewer {
+      background-color: #f8f9fa;
+      color: #212529;
+      padding: 10px;
+      border-radius: 5px;
+    }
+    /* Botão de alternar tema */
+    .theme-toggle {
+      position: fixed;
+      top: 1rem;
+      right: 1rem;
+      z-index: 1000;
+    }
+    .theme-toggle button {
+      border: none;
+      background: transparent;
+      font-size: 1.5rem;
+      cursor: pointer;
+      color: inherit;
+    }
+  </style>
+</head>
+<body class="dark-mode">
+  <!-- Botão para alternar tema -->
+  <div class="theme-toggle">
+    <button id="toggleTheme"><i class="bi bi-sun-fill"></i></button>
+  </div>
+
+  <div class="container mt-5">
+    <h1 class="mb-4">Visualizador de Logs do Laravel</h1>
+    
+    <!-- Input para upload do arquivo -->
+    <div class="mb-4">
+      <input type="file" id="logfile" accept=".log,text/plain" class="form-control">
+    </div>
+    
+    <!-- Tabela para exibição dos logs -->
+    <table id="logsTable" class="table table-striped table-bordered">
+      <thead>
+        <tr>
+          <th>Timestamp</th>
+          <th>Ambiente</th>
+          <th>Nível</th>
+          <th>Mensagem</th>
+          <th>Ações</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+  </div>
+  
+  <!-- Dependências: jQuery, Bootstrap, DataTables e jQuery JSON Viewer -->
+  <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+  <script src="https://cdn.datatables.net/1.13.4/js/jquery.dataTables.min.js"></script>
+  <script src="https://cdn.datatables.net/1.13.4/js/dataTables.bootstrap5.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jquery-json-viewer@1.4.0/json-viewer.min.js"></script>
+  
+  <script>
+    $(document).ready(function() {
+      // Inicializa o DataTable
+      var table = $('#logsTable').DataTable({
+        "order": [[0, "desc"]],
+        "language": {
+          "url": "https://cdn.datatables.net/plug-ins/1.13.4/i18n/Portuguese-Brasil.json"
+        }
+      });
+      
+      // Função para realizar o parse do arquivo de log
+      function parseLogFile(fileContent) {
+        var logs = [];
+        // Separa o conteúdo em linhas
+        var lines = fileContent.split(/\r?\n/);
+        var currentEntry = null;
+        // Expressão regular para identificar o início de uma entrada de log:
+        // Exemplo: [2025-02-07 12:00:00] environment.level: mensagem
+        var regex = /^\[(.*?)\]\s+(\S+)\.(\w+):\s+(.*)/;
+        lines.forEach(function(line) {
+          var match = line.match(regex);
+          if (match) {
+            // Se já existir uma entrada, adiciona-a ao array
+            if (currentEntry) {
+              logs.push(currentEntry);
+            }
+            currentEntry = {
+              timestamp: match[1],
+              environment: match[2],
+              level: match[3],
+              message: match[4],
+              full: line + "\n"
+            };
+          } else {
+            // Caso a linha não inicie com o padrão, adiciona como parte dos detalhes
+            if (currentEntry) {
+              currentEntry.full += line + "\n";
+            }
+          }
+        });
+        if (currentEntry) {
+          logs.push(currentEntry);
+        }
+        return logs;
+      }
+      
+      // Função para formatar os detalhes: se o texto for JSON (ou contiver JSON) utiliza o JSON Viewer
+      function format(details) {
+        var html = "";
+        try {
+          // Tenta converter o conteúdo inteiro em JSON
+          var jsonData = JSON.parse(details);
+          var containerId = 'json-' + Math.floor(Math.random() * 100000);
+          html = '<div id="'+ containerId +'" class="json-viewer"></div>';
+          setTimeout(function() {
+            $('#' + containerId).jsonViewer(jsonData, { collapsed: true });
+          }, 0);
+          return html;
+        } catch (e) {
+          // Caso não seja um JSON válido, tenta extrair um trecho JSON do texto
+          var jsonMatch = details.match(/(\{.*\})/s);
+          if (jsonMatch && jsonMatch[1]) {
+            try {
+              var extracted = JSON.parse(jsonMatch[1]);
+              var containerId = 'json-' + Math.floor(Math.random() * 100000);
+              html = '<div id="'+ containerId +'" class="json-viewer"></div>';
+              setTimeout(function() {
+                $('#' + containerId).jsonViewer(extracted, { collapsed: true });
+              }, 0);
+              return html;
+            } catch (e2) {
+              // Se ainda assim não funcionar, segue para o fallback
+            }
+          }
+          // Fallback: exibe o conteúdo em um <pre>
+          return '<pre>' + $('<div>').text(details).html() + '</pre>';
+        }
+      }
+      
+      // Evento disparado quando um arquivo é selecionado
+      $('#logfile').on('change', function(event) {
+        var file = event.target.files[0];
+        if (file) {
+          var reader = new FileReader();
+          reader.onload = function(e) {
+            var content = e.target.result;
+            var logs = parseLogFile(content);
+            // Limpa a tabela
+            table.clear().draw();
+            // Adiciona cada log à tabela e armazena os detalhes no elemento da linha
+            logs.forEach(function(log) {
+              var detailsBtn = '<button class="btn btn-sm btn-primary details-btn">Detalhes</button>';
+              var rowNode = table.row.add([
+                log.timestamp,
+                log.environment,
+                log.level,
+                log.message,
+                detailsBtn
+              ]).draw(false).node();
+              $(rowNode).data('details', log.full);
+            });
+          };
+          reader.readAsText(file);
+        }
+      });
+      
+      // Evento para exibir/ocultar a child row com os detalhes
+      $('#logsTable tbody').on('click', 'button.details-btn', function() {
+        var tr = $(this).closest('tr');
+        var row = table.row(tr);
+        if ( row.child.isShown() ) {
+          row.child.hide();
+          tr.removeClass('shown');
+        } else {
+          var details = tr.data('details');
+          row.child(format(details)).show();
+          tr.addClass('shown');
+        }
+      });
+      
+      // Alterna entre tema claro e escuro
+      $('#toggleTheme').on('click', function() {
+        var body = $('body');
+        if (body.hasClass('dark-mode')) {
+          body.removeClass('dark-mode').addClass('light-mode');
+          $(this).html('<i class="bi bi-moon-fill"></i>');
+        } else {
+          body.removeClass('light-mode').addClass('dark-mode');
+          $(this).html('<i class="bi bi-sun-fill"></i>');
+        }
+      });
+      
+    });
+  </script>
+</body>
+</html>
